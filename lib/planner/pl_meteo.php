@@ -389,3 +389,48 @@ function wx_giorni(array $data): array {
     }
     return $out;
 }
+
+
+/* ===================== COME SI SCEGLIE IL LUOGO: «automatico» o «a mano» =====================
+   `planner_settings.weather_auto`: 1 = la posizione si aggiorna da sola con quella viva del
+   telefono o del browser; 0 = il posto resta quello scelto a mano (o l'ultimo rilevato).
+   La colonna si crea a mano (sql/migrations/2026-11-23_weather_auto.sql): finche' manca, tutto
+   funziona come prima e il meteo e' «a mano», senza errori. */
+
+function wx_ha_auto(): bool {
+    static $ha = null;
+    if ($ha === null) {
+        $r = mysqli_query(sec_db(), "SHOW COLUMNS FROM planner_settings LIKE 'weather_auto'");
+        $ha = $r && mysqli_num_rows($r) > 0;
+    }
+    return $ha;
+}
+
+/** Il luogo si aggiorna da solo con la posizione viva? */
+function wx_auto_attivo(int $uid): bool {
+    if (!wx_ha_auto()) return false;
+    $r = sec_one("SELECT weather_auto FROM planner_settings WHERE user_id = ?", [$uid], 'i');
+    return $r && (int)$r['weather_auto'] === 1;
+}
+
+/** Salva il luogo e accende il meteo; $auto dice se da ora segue la posizione viva o resta fermo. */
+function wx_salva_posizione(int $uid, float $lat, float $lon, ?string $place, bool $auto): void {
+    if (wx_ha_auto()) {
+        sec_q("UPDATE planner_settings SET weather_enabled = 1, weather_lat = ?, weather_lon = ?, weather_place = ?, weather_auto = ? WHERE user_id = ?",
+              [$lat, $lon, $place, $auto ? 1 : 0, $uid], 'ddsii');
+    } else {
+        sec_q("UPDATE planner_settings SET weather_enabled = 1, weather_lat = ?, weather_lon = ?, weather_place = ? WHERE user_id = ?",
+              [$lat, $lon, $place, $uid], 'ddsi');
+    }
+}
+
+/** Cambia solo la modalita', senza toccare il posto salvato. */
+function wx_imposta_auto(int $uid, bool $auto): void {
+    if (!wx_ha_auto()) return;
+    sec_q("UPDATE planner_settings SET weather_auto = ? WHERE user_id = ?", [$auto ? 1 : 0, $uid], 'ii');
+}
+
+/** `auto` dal corpo di una richiesta: assente = sì (chi manda la posizione del dispositivo la sta seguendo). */
+function wx_auto_da_richiesta($v): bool {
+    return !($v === 0 || $v === '0' || $v === false || $v === 'false');
+}

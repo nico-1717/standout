@@ -1181,6 +1181,7 @@ CREATE TABLE `planner_settings` (
   `weather_lat` decimal(8,5) DEFAULT NULL,
   `weather_lon` decimal(8,5) DEFAULT NULL,
   `weather_place` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome della località, se lo ricaviamo',
+  `weather_auto` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = il luogo del meteo segue la posizione viva; 0 = resta il posto scelto',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `fabs_open` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'colonna dei tastini a destra: 1 aperta, 0 richiusa sotto le abitudini',
   `default_notify` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'h1' COMMENT 'avviso con cui parte un evento nuovo: none | at_time | m30 | h1 | d1',

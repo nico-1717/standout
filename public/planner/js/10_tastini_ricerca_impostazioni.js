@@ -594,6 +594,25 @@ function schedaMeteo() {
         top.appendChild(toggle(!!WX.on, function (v) { if (v) wxAccendi(); else wxSpegni(); }));
         card.appendChild(top);
 
+        /* Da dove viene il luogo: segue la posizione viva (automatico) o resta quello scelto (a mano). */
+        if (WX.on) {
+            var modo = el('div', 'pl-wx-modo');
+            var bAuto = el('button', 'pl-wx-modo-b' + (WX.auto ? ' pl-on' : ''), T('planner.wx_auto'));
+            var bMano = el('button', 'pl-wx-modo-b' + (!WX.auto ? ' pl-on' : ''), T('planner.wx_a_mano'));
+            bAuto.type = 'button'; bMano.type = 'button';
+            bAuto.addEventListener('click', function () { if (!WX.auto) wxScegliAuto(); });
+            bMano.addEventListener('click', function () { if (WX.auto) wxScegliAMano(); });
+            modo.appendChild(bAuto); modo.appendChild(bMano);
+            card.appendChild(modo);
+            card.appendChild(el('div', 'pl-setcard-sub pl-wx-modo-sub', WX.auto ? T('planner.wx_auto_sub') : T('planner.wx_a_mano_sub')));
+            if (!WX.auto) {
+                var cambia = el('button', 'pl-wx-cambia', T('planner.wx_cambia_posto'));
+                cambia.type = 'button';
+                cambia.addEventListener('click', function () { wxChiediLuogo(''); });
+                card.appendChild(cambia);
+            }
+        }
+
         if (WX.on && g) {
             var vai = el('button', 'pl-setcard-go', T('planner.wx_previsioni'));
             vai.type = 'button';

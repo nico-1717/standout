@@ -117,7 +117,8 @@
      GET    /api/v1/places/search?q=      i posti che corrispondono (almeno 3 lettere): {places: [{name, detail, full, ref, lat|null, lon|null}]}. Solo token. Serve rete.
      GET    /api/v1/places/details?ref=   le coordinate del posto scelto: {place: {lat, lon, full, ref}}. Solo token. 404 not_found se non c'e'.
 
-     GET    /api/v1/weather               il meteo: {enabled, place, lat, lon, fonte, fonte_url, giorni: {AAAA-MM-GG: ...}, adesso, nota_affidabilita}. Solo token.
+     POST   /api/v1/weather/place         {lat, lon, place?}: salva un luogo scelto a mano (modalita' «a mano»). POST /weather/mode {auto}: solo la modalita'.
+     GET    /api/v1/weather               il meteo: {enabled, auto, place, lat, lon, fonte, fonte_url, giorni: {AAAA-MM-GG: ...}, adesso, nota_affidabilita}. Solo token.
      POST   /api/v1/weather/enable        {lat, lon}: lo accende per quel punto (come il sito) e risponde come GET
      POST   /api/v1/weather/disable       lo spegne (le coordinate restano)
      POST   /api/v1/weather/preview       {lat, lon, place?}: la previsione di un punto SENZA salvare niente, come il popup del sito
@@ -777,9 +778,11 @@ function api_h_places_details(array $ctx): void {
 }
 
 /* ---------------- Meteo (stessa logica di planner/meteo_api.php: le funzioni stanno in lib/planner/pl_meteo.php) ---------------- */
-function api_meteo_risposta(bool $on, ?string $place, ?float $lat, ?float $lon, bool $manuale = false): array {
+function api_meteo_risposta(bool $on, ?string $place, ?float $lat, ?float $lon, bool $manuale = false, ?bool $auto = null): array {
     $r = [
         'enabled' => $on, 'place' => $place, 'lat' => $lat, 'lon' => $lon, 'manual' => $manuale,
+        /* true = il luogo segue la posizione viva del telefono; false = resta quello scelto */
+        'auto' => $auto ?? false,
         'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL, 'giorni' => (object)[], 'adesso' => null,
         'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
     ];
@@ -805,7 +808,7 @@ function api_h_meteo(array $ctx): void {
     }
     /* spento, le coordinate salvate viaggiano lo stesso: riaccendendo l'app non deve chiedere di nuovo il posto */
     $haPunto = $s && $s['weather_lat'] !== null && $s['weather_lon'] !== null;
-    api_ok(api_meteo_risposta($on, $place, $haPunto ? (float)$s['weather_lat'] : null, $haPunto ? (float)$s['weather_lon'] : null));
+    api_ok(api_meteo_risposta($on, $place, $haPunto ? (float)$s['weather_lat'] : null, $haPunto ? (float)$s['weather_lon'] : null, false, wx_auto_attivo($uid)));
 }
 
 function api_h_meteo_accendi(array $ctx): void {
@@ -816,9 +819,31 @@ function api_h_meteo_accendi(array $ctx): void {
     $lon = sec_float($c['lon'] ?? null, -180, 180, 999);
     if ($lat === 999.0 || $lon === 999.0) api_errore('validation', 'lat', 422);
     $place = wx_place_nome($lat, $lon);
-    sec_q("UPDATE planner_settings SET weather_enabled = 1, weather_lat = ?, weather_lon = ?, weather_place = ? WHERE user_id = ?",
-        [$lat, $lon, $place, $uid], 'ddsi');
-    api_ok(api_meteo_risposta(true, $place, $lat, $lon));
+    $auto = wx_auto_da_richiesta($c['auto'] ?? null);   // assente = la posizione e' del dispositivo: la si segue
+    wx_salva_posizione($uid, $lat, $lon, $place, $auto);
+    api_ok(api_meteo_risposta(true, $place, $lat, $lon, false, $auto));
+}
+
+/* Un luogo scelto a mano che RESTA (a differenza di weather/preview, che guarda e basta): modalita' «a mano». */
+function api_h_meteo_luogo(array $ctx): void {
+    date_default_timezone_set('Europe/Rome');
+    $uid = (int)$ctx['utente']['id'];
+    $c = api_corpo();
+    $lat = sec_float($c['lat'] ?? null, -90, 90, 999);
+    $lon = sec_float($c['lon'] ?? null, -180, 180, 999);
+    if ($lat === 999.0 || $lon === 999.0) api_errore('validation', 'lat', 422);
+    $place = isset($c['place']) ? sec_str((string)$c['place'], 120) : '';
+    if ($place === '') $place = (string)wx_place_nome($lat, $lon);
+    wx_salva_posizione($uid, $lat, $lon, $place !== '' ? $place : null, false);
+    api_ok(api_meteo_risposta(true, $place !== '' ? $place : null, $lat, $lon, false, false));
+}
+
+/* Solo la modalita': {auto: true|false}. Il posto salvato non cambia. */
+function api_h_meteo_modo(array $ctx): void {
+    $uid = (int)$ctx['utente']['id'];
+    $c = api_corpo();
+    wx_imposta_auto($uid, wx_auto_da_richiesta($c['auto'] ?? null));
+    api_ok(['auto' => wx_auto_attivo($uid)]);
 }
 
 function api_h_meteo_spegni(array $ctx): void {
@@ -971,6 +996,8 @@ api_v1_esegui([
     ['GET',    'weather',           'api_h_meteo',                        ['accetta' => ['token']]],
     ['POST',   'weather/enable',    'api_h_meteo_accendi',                ['accetta' => ['token']]],
     ['POST',   'weather/disable',   'api_h_meteo_spegni',                 ['accetta' => ['token']]],
+    ['POST',   'weather/place',     'api_h_meteo_luogo',                  ['accetta' => ['token']]],
+    ['POST',   'weather/mode',      'api_h_meteo_modo',                   ['accetta' => ['token']]],
     ['POST',   'weather/preview',   'api_h_meteo_anteprima',              ['accetta' => ['token']]],
     ['GET',    'weather/places',    'api_h_meteo_luoghi',                 ['accetta' => ['token']]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */

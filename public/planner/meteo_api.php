@@ -65,6 +65,7 @@ if ($ajax === 'status') {
            "46,07 / 11,12" è comunque una risposta a "su dove sta calcolando" */
         'lat'     => $on ? (float)$s['weather_lat'] : null,
         'lon'     => $on ? (float)$s['weather_lon'] : null,
+        'auto'    => wx_auto_attivo($uid),
         'fonte'   => WX_FONTE,
         'fonte_url' => WX_FONTE_URL,
         'giorni'  => [],
@@ -87,18 +88,47 @@ if ($ajax === 'enable') {
 
     $place = wx_place_nome($lat, $lon);
 
-    sec_q("UPDATE planner_settings SET weather_enabled = 1, weather_lat = ?, weather_lon = ?, weather_place = ?
-           WHERE user_id = ?", [$lat, $lon, $place, $uid], 'ddsi');
+    /* la posizione arriva dal dispositivo: di norma da qui in poi la si segue (automatico);
+       `auto: 0` la salva ma lascia il luogo fermo */
+    $auto = wx_auto_da_richiesta(sec_in('auto'));
+    wx_salva_posizione($uid, $lat, $lon, $place, $auto);
     sec_audit('meteo_on', 'ok', $place);
 
     $data = wx_fetch($lat, $lon);
     sec_json([
-        'ok' => true, 'enabled' => true, 'place' => $place, 'lat' => $lat, 'lon' => $lon,
+        'ok' => true, 'enabled' => true, 'place' => $place, 'lat' => $lat, 'lon' => $lon, 'auto' => $auto,
         'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL,
         'giorni' => $data ? wx_giorni($data) : [],
         'adesso' => $data ? wx_adesso($data) : null,
         'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
     ]);
+}
+
+/* ---------------- luogo scelto a mano, che RESTA ----------------
+   A differenza di `preview` (che guarda e basta), questo salva: da ora il meteo e' di quel posto,
+   in modalita' «a mano», finche' non si torna all'automatico. */
+if ($ajax === 'set_place') {
+    $lat = sec_float(sec_in('lat'), -90, 90, 999);
+    $lon = sec_float(sec_in('lon'), -180, 180, 999);
+    if ($lat === 999.0 || $lon === 999.0) sec_die_json(t('planner.wx_posizione_non_valida'), 422, 'invalid');
+    $place = sec_str(sec_in('place'), 120);
+    if ($place === '') $place = (string)wx_place_nome($lat, $lon);
+    wx_salva_posizione($uid, $lat, $lon, $place !== '' ? $place : null, false);
+    sec_audit('meteo_luogo', 'ok', $place);
+    $data = wx_fetch($lat, $lon);
+    sec_json([
+        'ok' => true, 'enabled' => true, 'place' => $place !== '' ? $place : null, 'lat' => $lat, 'lon' => $lon, 'auto' => false,
+        'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL,
+        'giorni' => $data ? wx_giorni($data) : [],
+        'adesso' => $data ? wx_adesso($data) : null,
+        'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
+    ]);
+}
+
+/* solo la modalita': l'automatico segue la posizione viva, «a mano» tiene il posto com'e' */
+if ($ajax === 'set_auto') {
+    wx_imposta_auto($uid, wx_auto_da_richiesta(sec_in('auto')));
+    sec_json(['ok' => true, 'auto' => wx_auto_attivo($uid)]);
 }
 
 if ($ajax === 'disable') {

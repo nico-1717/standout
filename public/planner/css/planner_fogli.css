@@ -559,6 +559,18 @@ textarea.pl-in.pl-note{ min-height:200px; }
     transition:transform var(--t-fast) var(--ease);
 }
 .pl-setcard-go:active{ transform:scale(.97); }
+/* Luogo del meteo: automatico (segue la posizione viva) o a mano (resta il posto scelto) */
+.pl-wx-modo{ display:flex; gap:4px; margin-top:12px; padding:3px; border-radius:12px; background:var(--paper-2); }
+.pl-wx-modo-b{
+    flex:1; padding:8px 10px; border-radius:9px; font-size:13.5px; font-weight:600; color:var(--ink-3);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pl-wx-modo-b.pl-on{ background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+.pl-wx-modo-sub{ margin-top:8px; }
+.pl-wx-cambia{
+    display:block; width:100%; margin-top:10px; padding:9px 12px; border-radius:12px;
+    font-size:14px; font-weight:600; color:var(--sc); background:color-mix(in srgb, var(--sc) 12%, var(--card));
+}
 .pl-setcard-stato{
     flex:none; padding:3px 8px; border-radius:var(--r-pill); font-size:11px; font-weight:600;
     background:var(--paper-2); color:var(--ink-3); white-space:nowrap;

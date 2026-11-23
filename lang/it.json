@@ -1958,7 +1958,16 @@
     "app_indirizzo": "Indirizzo",
     "app_max_invitati": "Al massimo 30 invitati per evento.",
     "app_email_non_valida": "Questo indirizzo e-mail non è valido.",
-    "app_email_gia": "Questo indirizzo c'è già nella rubrica."
+    "app_email_gia": "Questo indirizzo c'è già nella rubrica.",
+    "wx_auto": "Automatico",
+    "wx_a_mano": "Luogo scelto",
+    "wx_auto_sub": "Segue la tua posizione viva. Quando apri il planner e ti sei spostato di più di 3 km, il meteo si sposta con te.",
+    "wx_a_mano_sub": "Tiene il posto che hai scelto, ovunque tu sia.",
+    "wx_cambia_posto": "Cambia luogo",
+    "wx_luogo_titolo": "Scegli il luogo",
+    "wx_scrivi_luogo": "Scrivi una città o un paese. Il meteo resta lì finché non torni ad Automatico.",
+    "wx_auto_negato": "Non riesco a leggere la tua posizione viva. Consenti la posizione a questo sito e riprova.",
+    "wx_a_mano_attivo": "Il meteo ora resta su questo posto."
   },
   "abitudini": {
     "abitudini": "Abitudini",

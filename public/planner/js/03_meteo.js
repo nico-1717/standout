@@ -13,7 +13,7 @@
    che serve: cambiare posto qui vuol dire sbirciare che tempo fa dove si
    andrà domani, non trasferirsi. In archivio `weather_lat/lon/place`
    continuano a dire dove si è davvero. */
-var WX = { on: false, giorni: {}, adesso: null, place: null, lat: null, lon: null, fonte: null, fonte_url: null, nota: null, manuale: false };
+var WX = { on: false, giorni: {}, adesso: null, place: null, lat: null, lon: null, fonte: null, fonte_url: null, nota: null, manuale: false, auto: false };
 
 /* Le icone del tempo: forme piene e geometriche (cerchi e barre), ognuna con i
    suoi colori — la nuvola in ardesia, il resto nel colore del tempo che dice.
@@ -159,6 +159,7 @@ function wxApply(r) {
     else if (r.place) WX.place = r.place;
     if (r.lat !== undefined && r.lat !== null) { WX.lat = r.lat; WX.lon = r.lon; }
     WX.manuale = !!r.manuale;
+    if (r.auto !== undefined) WX.auto = !!r.auto;
     WX.fonte = r.fonte || null;
     WX.fonte_url = r.fonte_url || null;
     if (r.nota_affidabilita) WX.nota = r.nota_affidabilita;
@@ -176,7 +177,50 @@ function wxLoad() {
     if (WX.manuale && WX.lat !== null && WX.lat !== undefined) {
         return wxCall('preview', { lat: WX.lat, lon: WX.lon, place: WX.place || '' }).then(wxApply);
     }
-    return wxCall('status').then(wxApply);
+    return wxCall('status').then(function (r) { wxApply(r); wxSeguiPosizione(r); });
+}
+
+/* Modalità «automatico»: il luogo segue la posizione viva. All'apertura si guarda dove si è e, se ci si è
+   spostati di più di 3 km dal posto salvato, si salva quello nuovo. Se il permesso manca o il segnale tarda,
+   resta il posto di prima, in silenzio: non è un errore, è solo che stavolta non si sa. */
+function wxKm(lat1, lon1, lat2, lon2) {
+    var r = Math.PI / 180, dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function wxSeguiPosizione(r) {
+    if (!r || !r.ok || !r.enabled || !r.auto || !navigator.geolocation) return;
+    if (r.lat === null || r.lat === undefined) return;
+    navigator.geolocation.getCurrentPosition(function (pos) {
+        if (wxKm(r.lat, r.lon, pos.coords.latitude, pos.coords.longitude) < 3) return;
+        wxCall('enable', { lat: pos.coords.latitude, lon: pos.coords.longitude, auto: 1 }).then(wxApply);
+    }, function () { /* niente permesso o niente segnale: il posto resta quello di prima */ },
+    { timeout: 8000, maximumAge: 600000 });
+}
+
+/* Dalle impostazioni: da ora il luogo segue la posizione viva. */
+function wxScegliAuto() {
+    if (!navigator.geolocation) { toast(T('planner.questo_browser_non_sa_dire')); return; }
+    toast(T('planner.chiedo_la_posizione'));
+    navigator.geolocation.getCurrentPosition(function (pos) {
+        wxCall('enable', { lat: pos.coords.latitude, lon: pos.coords.longitude, auto: 1 }).then(function (r) {
+            if (!r || !r.ok) { toast(T('planner.meteo_non_attivato')); return; }
+            wxApply(r);
+            toast(r.place ? T('planner.meteo_attivo_per', {posto: r.place}) : T('planner.meteo_attivo'));
+        });
+    }, function () { toast(T('planner.wx_auto_negato')); wxAvvisaCambio(); },
+    { timeout: 12000, maximumAge: 600000 });
+}
+
+/* Dalle impostazioni: il posto resta quello che c'è ora, anche se ci si sposta. */
+function wxScegliAMano() {
+    wxCall('set_auto', { auto: 0 }).then(function (r) {
+        if (!r || !r.ok) return;
+        WX.auto = false;
+        wxAvvisaCambio();
+        toast(T('planner.wx_a_mano_attivo'));
+    });
 }
 
 /* Il tag da mettere in una cella: solo per i giorni che abbiamo. */
@@ -770,7 +814,7 @@ function wxChiediLuogo(perche) {
     var sheet = el('div', 'pl-sheet pl-sheet-auto');
     sheet.appendChild(el('div', 'pl-grab'));
     var head = el('div', 'pl-sheet-head');
-    head.appendChild(el('span', 'pl-sheet-title pl-serif', T('planner.dove_sei')));
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', perche ? T('planner.dove_sei') : T('planner.wx_luogo_titolo')));
     var chiudi = el('button', 'pl-txt-btn', T('planner.chiudi'));
     chiudi.type = 'button';
     chiudi.addEventListener('click', function () { ov.remove(); });
@@ -778,7 +822,7 @@ function wxChiediLuogo(perche) {
     sheet.appendChild(head);
 
     var body = el('div', 'pl-sheet-body');
-    body.appendChild(el('div', 'pl-row-sub', perche + T('planner.scrivi_posto')));
+    body.appendChild(el('div', 'pl-row-sub', perche ? perche + T('planner.scrivi_posto') : T('planner.wx_scrivi_luogo')));
 
     var box = el('div', 'pl-wx-cerca');
     var inp = el('input', 'pl-in');
@@ -813,9 +857,8 @@ function wxChiediLuogo(perche) {
                     b.appendChild(el('span', 'pl-row-lab', p.nome));
                     if (p.dove) b.appendChild(el('span', 'pl-row-sub', p.dove));
                     b.addEventListener('click', function () {
-                        /* `enable` e non `preview`: qui la posizione la si sta
-                           dichiarando, non sbirciando */
-                        wxCall('enable', { lat: p.lat, lon: p.lon }).then(function (rr) {
+                        /* `set_place` e non `preview`: qui il posto lo si sta scegliendo, e resta («a mano») */
+                        wxCall('set_place', { lat: p.lat, lon: p.lon, place: p.nome || '' }).then(function (rr) {
                             if (!rr || !rr.ok) { toast(T('planner.meteo_non_attivato')); return; }
                             ov.remove();
                             wxApply(rr);

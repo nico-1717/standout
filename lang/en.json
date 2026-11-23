@@ -1958,7 +1958,16 @@
     "app_indirizzo": "Address",
     "app_max_invitati": "At most 30 guests per event.",
     "app_email_non_valida": "That e-mail address is not valid.",
-    "app_email_gia": "That address is already in the address book."
+    "app_email_gia": "That address is already in the address book.",
+    "wx_auto": "Automatic",
+    "wx_a_mano": "Chosen place",
+    "wx_auto_sub": "Follows your live location. When you open the planner and you moved more than 3 km, the forecast moves with you.",
+    "wx_a_mano_sub": "Keeps the place you chose, wherever you are.",
+    "wx_cambia_posto": "Change place",
+    "wx_luogo_titolo": "Choose the place",
+    "wx_scrivi_luogo": "Type a city or town. The forecast stays on it until you go back to Automatic.",
+    "wx_auto_negato": "I can't read your live location. Allow location for this site and try again.",
+    "wx_a_mano_attivo": "The forecast now stays on this place."
   },
   "abitudini": {
     "abitudini": "Habits",
