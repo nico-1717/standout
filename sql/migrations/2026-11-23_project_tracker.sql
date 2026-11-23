@@ -21,7 +21,7 @@
 
 CREATE TABLE IF NOT EXISTS `tracker_blocks` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Solo per scorrere la tabella a pagine (l''identita'' e'' uuid)',
-  `uuid` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Identita'' della riga per l''app (UUID)',
+  `uuid` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) COMMENT 'Identita'' della riga per l''app (UUID)',
   `user_id` INT NOT NULL,
   `project_id` INT NOT NULL,
   `kind` VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'table | counter | progress | chart | checklist | note | review | connection',
