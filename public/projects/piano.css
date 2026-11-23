@@ -128,7 +128,7 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-act.pp-act-mini{ flex:none; width:36px; padding:0; margin-left:2px; background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue); box-shadow:none; }
 .pp-act.quiet{ background:var(--surface-2); color:var(--text); box-shadow:none; flex:none; }
 .pp-act span{ overflow:hidden; text-overflow:ellipsis; }
-.pp-dock-plan{ margin:0; left:auto; right:auto; bottom:auto; z-index:auto; position:static; background:none; box-shadow:none; padding:0; -webkit-backdrop-filter:none; backdrop-filter:none; }
+.pp-dock-plan{ margin:0; width:auto; gap:6px; left:auto; right:auto; bottom:auto; z-index:auto; position:static; background:none; box-shadow:none; padding:0; -webkit-backdrop-filter:none; backdrop-filter:none; }
 
 /* piano: tempo, tipo, date */
 .pp-goal{ display:flex; flex-direction:column; }
