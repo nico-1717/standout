@@ -5190,6 +5190,7 @@
     "x_bad": "No table found in this text. Paste rows with a header line.",
     "x_live": "Live updates need a website that shares its data openly. For now, paste again whenever you want to refresh.",
     "x_url_bad": "Enter a full address starting with https://",
+    "save_error": "Could not save. Check your connection and try again.",
     "k_review": "NeetCode 150",
     "d_review": "Spaced review of the 150 NeetCode problems",
     "title_ph": "Title",

@@ -5190,6 +5190,7 @@
     "x_bad": "Nessuna tabella trovata in questo testo. Incolla delle righe con una riga di intestazione.",
     "x_live": "Gli aggiornamenti in tempo reale servono un sito che condivide i dati apertamente. Per ora incolla di nuovo quando vuoi aggiornare.",
     "x_url_bad": "Scrivi un indirizzo completo che inizia con https://",
+    "save_error": "Salvataggio non riuscito. Controlla la connessione e riprova.",
     "k_review": "NeetCode 150",
     "d_review": "Ripasso a intervalli dei 150 problemi di NeetCode",
     "title_ph": "Titolo",

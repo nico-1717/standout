@@ -1204,13 +1204,14 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/progetti.css?v=<?php echo @filemtime(__DIR__ . '/progetti.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/piano.css?v=<?php echo @filemtime(__DIR__ . '/piano.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/tracker.css?v=<?php echo @filemtime(__DIR__ . '/tracker.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
 /* 'pomodoro' serve a pomodoro_storico.php, incluso da questa pagina: senza,
    tutte le sue stringhe uscirebbero come <<chiave>>. */
 /* 'todo' serve al widget attività incluso qui dentro: senza, le sue scritte
    uscivano come <<todo.niente_da_fare>>. */
-echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo', 'piano']);
+echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo', 'piano', 'tracker']);
 ?>
 <script src="../fc/fc_parser.js?v=<?php echo time(); ?>"></script>
 </head>
@@ -1596,8 +1597,10 @@ if ($deckProprio) {
         <button type="button" data-pp="list" class="on"><?php te('piano.v_elenco'); ?></button>
         <button type="button" data-pp="cal"><?php te('piano.v_calendario'); ?></button>
         <button type="button" data-pp="plan"><?php te('piano.v_piano'); ?></button>
+        <button type="button" data-pp="trk"><?php te('tracker.tab'); ?></button>
     </nav>
     <div id="ppHost" data-project="<?php echo $selId; ?>"></div>
+    <div id="trkHost" data-project="<?php echo $selId; ?>"></div>
 
     <?php if (!empty($selectedTree['children'])): ?>
     <?php /* L'etichetta porta anche gli strumenti dell'elenco — scegliere,
@@ -3939,6 +3942,8 @@ window.prSpostaSalva = function (ids, nuovoPadre, info) {
 
 <script src="nota_auto.js?v=<?php echo @filemtime(__DIR__ . '/nota_auto.js') ?: 1; ?>"></script>
 <script src="piano.js?v=<?php echo @filemtime(__DIR__ . '/piano.js') ?: 1; ?>"></script>
+<script src="tracker_core.js?v=<?php echo @filemtime(__DIR__ . '/tracker_core.js') ?: 1; ?>"></script>
+<script src="tracker.js?v=<?php echo @filemtime(__DIR__ . '/tracker.js') ?: 1; ?>"></script>
 <script nonce="<?php echo sec_nonce(); ?>">
 /* Il piano: le viste Calendario e Piano di un progetto, e la vista
    «Calendario» di tutti i progetti. piano.js disegna, qui si sceglie quale. */
@@ -3957,7 +3962,7 @@ window.prSpostaSalva = function (ids, nuovoPadre, info) {
     }
     window.PR_PIANO_SEG = marca;
     window.ppVai = function(v){
-        if (v !== 'cal' && v !== 'plan') v = 'list';
+        if (v !== 'cal' && v !== 'plan' && v !== 'trk') v = 'list';
         marca(v);
         try {
             var u = new URL(window.location.href);
@@ -3965,6 +3970,11 @@ window.prSpostaSalva = function (ids, nuovoPadre, info) {
             window.history.replaceState(null, '', u.toString());
         } catch (e) {}
         if (v === 'list') return;
+        if (v === 'trk') {
+            var th = document.getElementById('trkHost');
+            if (th && window.StandoutTracker) window.StandoutTracker.open(th, parseInt(th.getAttribute('data-project'), 10) || 0);
+            return;
+        }
         if (!started) { started = true; P.project(host, parseInt(host.getAttribute('data-project'), 10) || 0, v); }
         else P.setTab(v);
     };
@@ -3973,7 +3983,7 @@ window.prSpostaSalva = function (ids, nuovoPadre, info) {
         if (b) window.ppVai(b.getAttribute('data-pp'));
     });
     var iniziale = new URLSearchParams(window.location.search).get('pp');
-    if (iniziale === 'cal' || iniziale === 'plan') window.ppVai(iniziale);
+    if (iniziale === 'cal' || iniziale === 'plan' || iniziale === 'trk') window.ppVai(iniziale);
 })();
 </script>
 <?php include __DIR__ . '/../planner/todo_widget.php'; ?>
