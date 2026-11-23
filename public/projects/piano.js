@@ -1381,6 +1381,13 @@
             var labs = h('div', 'pp-wk-l');
             m.weeks.forEach(function (w, i) { var d = parse(w.start); labs.appendChild(h('span', '', (i === 0 || d.getUTCDate() <= 7) ? fmtDate(w.start, { month: 'short' }) : '')); });
             wk.appendChild(labs);
+            var key = h('div', 'pp-wk-key');
+            m.goals.filter(function (g) { return g.status !== 'completed' && g.minutes > 0; }).forEach(function (g) {
+                var d = h('i', 'pp-chip-dot'); d.style.background = g.color;
+                key.appendChild(h('span', 'pp-wk-k', [d, g.name]));
+            });
+            wk.appendChild(key);
+            wk.appendChild(h('div', 'pp-hint', t('ov_legenda')));
             root.appendChild(wk);
         }
 
@@ -1390,10 +1397,16 @@
             var row = h('button', 'pp-goal-row'); row.type = 'button';
             var dot = h('i', 'pp-chip-dot'); dot.style.background = g.color;
             var info = h('div', 'pp-goal-info', [h('div', 'pp-goal-n', g.name), h('div', 'pp-sub', goalLine(g))]);
+            if (g.minutes > 0) {
+                var gb = h('div', 'pp-bar'); var gf = h('i'); gf.style.width = Math.min(100, Math.round((g.done_min || 0) * 100 / g.minutes)) + '%'; gf.style.background = g.color;
+                gb.appendChild(gf); info.appendChild(gb);
+                info.appendChild(h('div', 'pp-sub', t('ov_fatto_di', { a: fmtMin(g.done_min || 0), b: fmtMin(g.minutes) })));
+            }
             row.appendChild(dot); row.appendChild(info);
             var right = h('div', 'pp-goal-r');
             right.appendChild(h('b', '', g.minutes ? fmtMin(g.minutes) : '–'));
-            if (g.missing_min > 0) right.appendChild(h('small', 'bad', '−' + fmtMin(g.missing_min)));
+            if (g.missing_min > 0) right.appendChild(h('small', 'bad', t('ov_manca', { h: fmtMin(g.missing_min) })));
+            else if (g.minutes > 0 && m.units) right.appendChild(h('small', 'good', t('ov_in_linea')));
             row.appendChild(right);
             row.addEventListener('click', function () { window.location.href = 'progetti.php?id=' + g.id + '&pp=plan'; });
             list.appendChild(row);
