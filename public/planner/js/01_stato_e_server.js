@@ -632,6 +632,14 @@ function eventoLocale(d, base, id) {
     if (d.project_id && base && base.project_id === +d.project_id) {
         e.project_name = base.project_name; e.project_color = base.project_color;
     }
+    if (d.place_lat !== undefined) {   // il posto scelto: serve per la mappa dietro il blocco
+        var pl = (d.place_lat === '' || d.place_lat === null) ? null : +d.place_lat;
+        var po = (d.place_lon === '' || d.place_lon === null) ? null : +d.place_lon;
+        e.place_name = d.place_name || null;
+        e.place_lat = pl === null || po === null || isNaN(pl) || isNaN(po) ? null : pl;
+        e.place_lon = e.place_lat === null ? null : po;
+        e.place_ref = d.place_ref || null;
+    }
     e.giorni = giorniFra(e.date, e.end_date);
     e.multiday = e.giorni > 1;
     e.occ_date = e.date; e.master_id = id; e.uid = id + '@' + e.date;

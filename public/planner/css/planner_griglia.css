@@ -849,6 +849,29 @@
 /* zona di tocco più larga dei bordi, come per la casellina */
 .pl-ev-map::after{ content:''; position:absolute; left:-9px; right:-9px; top:-9px; bottom:-9px; }
 
+/* un evento con un posto vero sulla mappa: quella mappa, molto sbiadita, dietro il testo */
+.pl-ev-mappa::after{
+    content:''; position:absolute; left:0; right:0; top:0; bottom:0; z-index:0; pointer-events:none;
+    background:var(--mappa) center / cover no-repeat; opacity:.26;
+}
+.pl-ev-mappa::before{ z-index:2; }
+.pl-ev-mappa > *{ position:relative; z-index:1; }
+
+/* il popup del posto: mappa fatta con le tessere attorno al punto */
+.pl-luogo-mappa{
+    position:relative; height:220px; margin:10px 0 14px; overflow:hidden;
+    border-radius:var(--r-md); background:var(--paper-2); box-shadow:inset 0 0 0 .5px var(--hair);
+}
+.pl-luogo-tessere{ position:absolute; width:768px; height:768px; }
+.pl-luogo-tessere img{ position:absolute; width:256px; height:256px; max-width:none; display:block; }
+.pl-luogo-pin{ position:absolute; left:50%; top:50%; width:32px; height:32px; margin:-32px 0 0 -16px; color:#D9534F; filter:drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+.pl-luogo-pin svg{ width:100%; height:100%; display:block; }
+.pl-luogo-cred{
+    position:absolute; right:6px; bottom:4px; padding:1px 6px; border-radius:var(--r-pill);
+    background:rgba(255,255,255,.8); color:#555; font-size:10px;
+}
+.pl-luogo-apri{ width:100%; }
+
 .pl-ev-pomo{
     width:19px; height:19px; border-radius:var(--r-pill); flex-shrink:0;
     display:grid; place-items:center; color:var(--ink-2);

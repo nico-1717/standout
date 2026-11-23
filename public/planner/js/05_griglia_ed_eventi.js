@@ -1097,6 +1097,73 @@ function positioned(node, start, end) {
     return node;
 }
 
+/* ---- il posto di un evento: la mappa dietro il blocco e il piccolo popup ----
+   Le mappe sono tessere di OpenStreetMap (quadrati da 256 px): per lo sfondo ne
+   basta una, per il popup ne servono nove attorno al punto. Nessuna chiave e
+   nessun riquadro incorporato, quindi niente da aggiungere alle regole di
+   sicurezza della pagina (le immagini https sono già permesse). */
+function haPunto(ev) {
+    return ev.place_lat !== null && ev.place_lat !== undefined && ev.place_lon !== null && ev.place_lon !== undefined;
+}
+function tessera(lat, lon, z) {
+    var n = Math.pow(2, z), rad = lat * Math.PI / 180;
+    var fx = (lon + 180) / 360 * n;
+    var fy = (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n;
+    var x = Math.min(n - 1, Math.max(0, Math.floor(fx))), y = Math.min(n - 1, Math.max(0, Math.floor(fy)));
+    return { x: x, y: y, z: z, n: n, fx: (fx - x) * 256, fy: (fy - y) * 256 };
+}
+function urlTessera(z, x, y) { return 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png'; }
+
+function mappaLuogo(lat, lon, nome) {
+    var t = tessera(lat, lon, 16);
+    var box = el('div', 'pl-luogo-mappa');
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', T('planner.mappa_del_luogo') + ': ' + nome);
+    var tessere = el('div', 'pl-luogo-tessere');
+    /* il punto va al centro del riquadro: la tessera di mezzo scorre di quanto il punto è lontano dal suo angolo */
+    tessere.style.left = 'calc(50% - ' + (256 + t.fx) + 'px)';
+    tessere.style.top = 'calc(50% - ' + (256 + t.fy) + 'px)';
+    for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+        var x = t.x + dx, y = t.y + dy;
+        if (x < 0 || y < 0 || x >= t.n || y >= t.n) continue;
+        var im = el('img');
+        im.alt = ''; im.width = 256; im.height = 256; im.loading = 'lazy'; im.decoding = 'async';
+        im.referrerPolicy = 'strict-origin-when-cross-origin';
+        im.style.left = ((dx + 1) * 256) + 'px'; im.style.top = ((dy + 1) * 256) + 'px';
+        im.src = urlTessera(t.z, x, y);
+        tessere.appendChild(im);
+    }
+    box.appendChild(tessere);
+    var pin = el('span', 'pl-luogo-pin');
+    pin.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s-7-6.2-7-11.5a7 7 0 1114 0C19 15.8 12 22 12 22z" fill="currentColor" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="10.5" r="2.6" fill="#fff"/></svg>';
+    box.appendChild(pin);
+    box.appendChild(el('span', 'pl-luogo-cred', '© OpenStreetMap'));
+    return box;
+}
+
+/* Il posto dell'evento in un popup: nome, mappa (se c'è un punto vero) e «Apri nella mappa». */
+function apriLuogo(ev) {
+    var nome = ev.place_name || ev.location || '';
+    openSheet(nome, function (bd) {
+        if (ev.location && ev.location !== nome) bd.appendChild(el('div', 'pl-row-sub', ev.location));
+        if (haPunto(ev)) bd.appendChild(mappaLuogo(ev.place_lat, ev.place_lon, nome));
+        var vai = el('button', 'pl-btn pl-btn-primary pl-luogo-apri', T('planner.apri_nella_mappa'));
+        vai.type = 'button';
+        vai.addEventListener('click', function () {
+            var apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent), url;
+            if (haPunto(ev)) {
+                url = apple ? 'maps://?ll=' + ev.place_lat + ',' + ev.place_lon + '&q=' + encodeURIComponent(nome)
+                            : 'https://www.google.com/maps/search/?api=1&query=' + ev.place_lat + ',' + ev.place_lon;
+            } else {
+                var q = encodeURIComponent(ev.location || nome);
+                url = apple ? 'maps://?q=' + q : 'https://www.google.com/maps/search/?api=1&query=' + q;
+            }
+            window.open(url, '_blank', 'noopener');
+        });
+        bd.appendChild(vai);
+    });
+}
+
 function buildEvent(ev, flow) {
     var node = el('div', 'pl-ev');
     if (flow) node.style.position = 'static';
@@ -1174,12 +1241,18 @@ function buildEvent(ev, flow) {
         tagW.title = ev.guests.map(function (g) { return g.email; }).join(', ');
         row.appendChild(tagW);
     }
-    if (ev.location && !S.shift.on) {
+    if ((ev.location || ev.place_name) && !S.shift.on) {
+        /* con un punto vero sulla mappa, anche lo sfondo del blocco è quella mappa, molto sbiadita */
+        if (haPunto(ev)) {
+            var tp = tessera(ev.place_lat, ev.place_lon, 15);
+            node.classList.add('pl-ev-mappa');
+            node.style.setProperty('--mappa', 'url("' + urlTessera(tp.z, tp.x, tp.y) + '")');
+        }
         var mapBtn = el('button', 'pl-ev-map');
         mapBtn.type = 'button';
         mapBtn.dataset.act = 'map';
-        mapBtn.dataset.place = ev.location;
-        mapBtn.setAttribute('aria-label', T('planner.portami_a', {posto: ev.location}));
+        mapBtn.dataset.place = ev.location || ev.place_name;
+        mapBtn.setAttribute('aria-label', T('planner.portami_a', {posto: ev.location || ev.place_name}));
         mapBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10a6.5 6.5 0 1113 0c0 4.4-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>';
         row.appendChild(mapBtn);
     }

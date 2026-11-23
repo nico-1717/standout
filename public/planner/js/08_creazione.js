@@ -1000,13 +1000,9 @@ function handleEventTap(e, node, ev) {
         return;
     }
     if (kind === 'map') {
-        /* su telefono apre l'app di navigazione predefinita, su computer la
-           mappa nel browser: la scelta la fa il sistema operativo */
-        var q = encodeURIComponent(act.dataset.place || '');
-        var isApple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
-        window.open(isApple ? 'maps://?q=' + q
-                            : 'https://www.google.com/maps/search/?api=1&query=' + q,
-                    '_blank', 'noopener');
+        /* il tastino apre un piccolo popup con il posto e la mappa; da lì «Apri nella mappa»
+           manda all'app di navigazione (telefono) o alla mappa nel browser (computer) */
+        apriLuogo(ev);
         return;
     }
     if (kind === 'pomo') {
