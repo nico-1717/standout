@@ -5315,7 +5315,11 @@
     "b_import_ph": "Paste a backup here",
     "b_result": "{a} new, {u} updated, {s} unchanged or skipped",
     "b_bad": "This text is not a NeetCode backup.",
-    "b_banner": "You have {n} solved problems and no recent backup. Open the Backup tab."
+    "b_banner": "You have {n} solved problems and no recent backup. Open the Backup tab.",
+    "k_blind75": "Blind 75",
+    "d_blind75": "Checklist of the 75 classic interview problems",
+    "k_streak": "LeetCode daily streak",
+    "d_streak": "30 days, one problem a day. It counts your days and minutes."
   },
   "piano": {
     "v_elenco": "List",

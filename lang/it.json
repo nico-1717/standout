@@ -5315,7 +5315,11 @@
     "b_import_ph": "Incolla qui un backup",
     "b_result": "{a} nuovi, {u} aggiornati, {s} uguali o saltati",
     "b_bad": "Questo testo non è un backup di NeetCode.",
-    "b_banner": "Hai {n} problemi risolti e nessun backup recente. Apri la scheda Backup."
+    "b_banner": "Hai {n} problemi risolti e nessun backup recente. Apri la scheda Backup.",
+    "k_blind75": "Blind 75",
+    "d_blind75": "Lista dei 75 problemi classici da colloquio",
+    "k_streak": "Serie giornaliera LeetCode",
+    "d_streak": "30 giorni, un problema al giorno. Conta i tuoi giorni e i minuti."
   },
   "piano": {
     "v_elenco": "Elenco",

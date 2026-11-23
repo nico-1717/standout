@@ -219,6 +219,13 @@
                 body.appendChild(choice(t('k_programming'), t('d_programming'), function () { page = 'programming'; draw(); }, true));
             } else {
                 body.appendChild(choice(t('k_review'), t('d_review'), function () { pick('review', t('k_review')); }));
+                /* i modelli già riempiti: blocchi normali (lista, tabella), poi si cambiano come gli altri */
+                ['blind75', 'streak'].forEach(function (id) {
+                    body.appendChild(choice(t('k_' + id), t('d_' + id), function () {
+                        var tpl = C.templateBlock(id);
+                        sh.close(); addBlock(tpl.kind, t('k_' + id), { config: tpl.config, data: tpl.data });
+                    }));
+                });
             }
         }
         draw();
