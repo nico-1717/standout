@@ -459,8 +459,11 @@
             write(items, { date: now, review: picks.review, news: picks.news.map(function (e, i) { return i === index ? { id: id, note: '' } : e; }) });
         }
         function doLearn() {
-            var l = C.learnPattern(items);
-            if (!l) { say(t('r_all_patterns')); again(); return; }
+            // a pattern already on screen is skipped, so pressing again (or Swap) gives a different one
+            var shown = [];
+            picks.news.forEach(function (e) { if (e.note.indexOf('learn:') === 0) shown.push(e.note.slice(6)); });
+            var l = C.learnPattern(items, shown);
+            if (!l) { say(shown.length ? t('r_no_other') : t('r_all_patterns')); again(); return; }
             say(null); write(items, { date: now, review: picks.review, news: [{ id: l.id, note: 'learn:' + l.cat }] });
         }
         function doLog(id, choice) {
@@ -488,7 +491,7 @@
             if (it) kids.push(h('div', 'tk-ok', t('r_solved_rated', { n: it.rating })));
             else {
                 var row = h('div', 'tk-row', [btn('pp-btn small primary', t('r_log_solved'), function () { logSheet(e.id); })]);
-                if (e.note.indexOf('learn:') !== 0) row.appendChild(btn('pp-btn small', t('r_swap'), function () { doSwap(index); }));
+                row.appendChild(btn('pp-btn small', t('r_swap'), function () { if (e.note.indexOf('learn:') === 0) doLearn(); else doSwap(index); }));
                 kids.push(row);
             }
             return card(e.id, h('div', 'tk-stack', kids));
