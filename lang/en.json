@@ -1968,7 +1968,8 @@
     "wx_scrivi_luogo": "Type a city or town. The forecast stays on it until you go back to Automatic.",
     "wx_auto_negato": "I can't read your live location. Allow location for this site and try again.",
     "wx_a_mano_attivo": "The forecast now stays on this place.",
-    "wx_auto_sub_app": "Follows your live location. This phone can send its own position only after the next app build; until then the place updates when you open the planner on the website."
+    "wx_auto_sub_app": "Follows your live location. The place updates when you open the planner on this phone.",
+    "wx_auto_negato_app": "I can't read your location. Allow location for Standout in your phone settings and try again."
   },
   "abitudini": {
     "abitudini": "Habits",
