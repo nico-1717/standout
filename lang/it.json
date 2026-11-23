@@ -5319,7 +5319,20 @@
     "k_blind75": "Blind 75",
     "d_blind75": "Lista dei 75 problemi classici da colloquio",
     "k_streak": "Serie giornaliera LeetCode",
-    "d_streak": "30 giorni, un problema al giorno. Conta i tuoi giorni e i minuti."
+    "d_streak": "30 giorni, un problema al giorno. Conta i tuoi giorni e i minuti.",
+    "x_ai": "Crea con l'IA",
+    "x_ai_update": "Aggiorna con l'IA",
+    "x_ai_hint": "Pagina disordinata? Incolla il testo così com'è (seleziona tutto, copia) e l'IA trova la tabella. Legge solo quello che incolli: non apre mai il sito.",
+    "x_ai_req_ph": "Facoltativo: cosa vuoi? (es. solo le partite di oggi)",
+    "x_ai_working": "L'IA sta creando la tabella… può volerci fino a 30 secondi.",
+    "x_ai_offline": "L'IA ha bisogno di una connessione a internet.",
+    "ai_vuoto": "Incolla prima un po' di testo.",
+    "ai_lungo": "Il testo è troppo lungo. Incolla solo la parte con i dati (fino a 30.000 caratteri).",
+    "ai_occupata": "L'IA è occupata in questo momento. Riprova fra un minuto.",
+    "ai_lungo_risposta": "La tabella sarebbe troppo grande. Incolla una parte più piccola della pagina.",
+    "ai_filtro": "L'IA non ha potuto usare questo testo.",
+    "ai_fallita": "L'IA non è riuscita a creare una tabella. Riprova, o incolla solo la parte con i dati.",
+    "ai_nessuna": "L'IA non ha trovato nessuna tabella in questo testo. Incolla la parte con le righe di dati."
   },
   "piano": {
     "v_elenco": "Elenco",

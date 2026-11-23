@@ -5319,7 +5319,20 @@
     "k_blind75": "Blind 75",
     "d_blind75": "Checklist of the 75 classic interview problems",
     "k_streak": "LeetCode daily streak",
-    "d_streak": "30 days, one problem a day. It counts your days and minutes."
+    "d_streak": "30 days, one problem a day. It counts your days and minutes.",
+    "x_ai": "Build with AI",
+    "x_ai_update": "Update with AI",
+    "x_ai_hint": "Messy page? Paste its text as it is (select all, copy) and the AI will find the table. It only reads what you paste: it never opens the site.",
+    "x_ai_req_ph": "Optional: what do you want? (e.g. only today's matches)",
+    "x_ai_working": "The AI is building your table… this can take up to 30 seconds.",
+    "x_ai_offline": "The AI needs an internet connection.",
+    "ai_vuoto": "Paste some text first.",
+    "ai_lungo": "That text is too long. Paste only the part with the data (up to 30,000 characters).",
+    "ai_occupata": "The AI is busy right now. Try again in a minute.",
+    "ai_lungo_risposta": "The table would be too big. Paste a smaller part of the page.",
+    "ai_filtro": "The AI could not use this text.",
+    "ai_fallita": "The AI could not build a table. Try again, or paste only the part with the data.",
+    "ai_nessuna": "The AI found no table in this text. Paste the part with the rows of data."
   },
   "piano": {
     "v_elenco": "List",

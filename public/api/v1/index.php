@@ -117,6 +117,7 @@
      GET    /api/v1/places/search?q=      i posti che corrispondono (almeno 3 lettere): {places: [{name, detail, full, ref, lat|null, lon|null}]}. Solo token. Serve rete.
      GET    /api/v1/places/details?ref=   le coordinate del posto scelto: {place: {lat, lon, full, ref}}. Solo token. 404 not_found se non c'e'.
 
+     POST   /api/v1/tracker/ai-table      {text, request?}: l'IA ricava una tabella dal testo incollato (non salva): {cols, rows, cells}. Solo token. 20 l'ora.
      POST   /api/v1/weather/place         {lat, lon, place?}: salva un luogo scelto a mano (modalita' «a mano»). POST /weather/mode {auto}: solo la modalita'.
      GET    /api/v1/weather               il meteo: {enabled, auto, place, lat, lon, fonte, fonte_url, giorni: {AAAA-MM-GG: ...}, adesso, nota_affidabilita}. Solo token.
      POST   /api/v1/weather/enable        {lat, lon}: lo accende per quel punto (come il sito) e risponde come GET
@@ -146,6 +147,7 @@ require_once __DIR__ . '/../../../lib/api_v1.php';
 require_once __DIR__ . '/../../../lib/todo_core.php';
 require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
 require_once __DIR__ . '/../../../lib/planner/pl_meteo.php';
+require_once __DIR__ . '/../../../lib/tracker_ai.php';
 require_once __DIR__ . '/../../../lib/habits_api.php';
 require_once __DIR__ . '/../../../lib/shopping_api.php';
 require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
@@ -846,6 +848,18 @@ function api_h_meteo_modo(array $ctx): void {
     api_ok(['auto' => wx_auto_attivo($uid)]);
 }
 
+/* L'IA ricava una tabella dal testo incollato. Non salva niente: il telefono crea o aggiorna la tabella da solo (offline-first). */
+function api_h_tracker_ai_tabella(array $ctx): void {
+    $uid = (int)$ctx['utente']['id'];
+    sec_require_rate('tracker_ai', $uid, 20, 3600);
+    $c = api_corpo();
+    $r = tkai_tabella($uid, (string)($c['text'] ?? ''), (string)($c['request'] ?? ''));
+    if (!$r['ok']) {
+        api_errore($r['code'] === 'plan_limit' ? 'quota_exceeded' : 'invalid_request', $r['message'], (int)$r['http'], ['reason' => $r['code']]);
+    }
+    api_ok(['cols' => $r['cols'], 'rows' => $r['rows'], 'cells' => (object)$r['cells']]);
+}
+
 function api_h_meteo_spegni(array $ctx): void {
     sec_q("UPDATE planner_settings SET weather_enabled = 0 WHERE user_id = ?", [(int)$ctx['utente']['id']], 'i');
     api_ok(['enabled' => false]);
@@ -999,6 +1013,7 @@ api_v1_esegui([
     ['POST',   'weather/place',     'api_h_meteo_luogo',                  ['accetta' => ['token']]],
     ['POST',   'weather/mode',      'api_h_meteo_modo',                   ['accetta' => ['token']]],
     ['POST',   'weather/preview',   'api_h_meteo_anteprima',              ['accetta' => ['token']]],
+    ['POST',   'tracker/ai-table',  'api_h_tracker_ai_tabella',           ['accetta' => ['token']]],
     ['GET',    'weather/places',    'api_h_meteo_luoghi',                 ['accetta' => ['token']]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],

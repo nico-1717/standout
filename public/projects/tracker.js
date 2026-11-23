@@ -372,9 +372,8 @@
         root.appendChild(h('div', 'pp-hint', t('x_hint')));
         var ta = h('textarea', 'tk-paste'); ta.placeholder = t('x_paste_ph'); ta.rows = 5; ta.setAttribute('autocapitalize', 'none'); ta.spellcheck = false;
         root.appendChild(ta);
-        var go = btn('pp-btn primary', linked ? t('x_update') : t('x_build'), function () {
-            var table = C.parseTable(ta.value);
-            if (!table) { msg.textContent = t('x_bad'); return; }
+        /* Una tabella pronta (letta qui o costruita dall'IA) diventa — o aggiorna — il blocco tabella collegato. */
+        function apply(table) {
             var config = { cols: table.cols, rows: table.rows, headers: [] }, data = { cells: table.cells };
             var finish = function (tb) {
                 if (!tb) return;
@@ -384,10 +383,30 @@
             };
             if (linked) { save(linked, { config: config, data: data }, true).then(function () { finish(linked); }); }
             else addBlock('table', C.hostOf(url) || t('k_table'), { config: config, data: data }).then(function (nb) {
-                if (nb) { finish(nb); } 
+                if (nb) { finish(nb); }
             });
+        }
+        var go = btn('pp-btn primary', linked ? t('x_update') : t('x_build'), function () {
+            var table = C.parseTable(ta.value);
+            if (!table) { msg.textContent = t('x_bad'); return; }
+            apply(table);
+        });
+        /* L'IA: legge solo il testo incollato (il server non apre nessun sito) e risponde con una tabella gia' controllata. */
+        var wishIn = input('tk-in wide', '', t('x_ai_req_ph'), function () {}, { autocapitalize: 'none' });
+        var ai = btn('pp-btn', linked ? t('x_ai_update') : t('x_ai'), function () {
+            var text = ta.value.trim();
+            if (!text) { msg.textContent = t('x_bad'); return; }
+            if (ai.disabled) return;
+            ai.disabled = true; msg.textContent = t('x_ai_working');
+            call('ai_table', { text: text, request: wishIn.value.trim() }).then(function (r) {
+                ai.disabled = false; msg.textContent = '';
+                apply({ cols: r.cols, rows: r.rows, cells: r.cells || {} });
+            }).catch(function (e) { ai.disabled = false; msg.textContent = ''; fail(e); });
         });
         root.appendChild(h('div', 'tk-row', go));
+        root.appendChild(h('div', 'pp-hint', t('x_ai_hint')));
+        root.appendChild(wishIn);
+        root.appendChild(h('div', 'tk-row', ai));
         root.appendChild(msg);
         root.appendChild(h('div', 'pp-hint', t('x_live')));
     }

@@ -7,6 +7,7 @@
      tracker_api.php?ajax=save              (POST) titolo, config e/o data di un blocco
      tracker_api.php?ajax=remove            (POST) toglie un blocco
      tracker_api.php?ajax=move              (POST) sposta un blocco su o giu' di un posto
+     tracker_api.php?ajax=ai_table          (POST) {text, request?}: l'IA ricava una tabella dal testo incollato (non salva)
 
    Il sito e il telefono scrivono la stessa tabella (tracker_blocks): qui si controllano solo forma e
    limiti, il significato di config e data lo conoscono i due client (vedi lib/sync_tracker.php).
@@ -23,6 +24,8 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
 sec_solo_post_se_scrive($ajax, ['list']);
+
+require_once __DIR__ . '/../../lib/tracker_ai.php';
 
 const TK_KINDS = ['table', 'counter', 'progress', 'chart', 'checklist', 'note', 'review', 'connection'];
 const TK_MAX_BLOCCHI = 20;
@@ -111,6 +114,13 @@ if ($ajax === 'add') {
           [$uid, $pid, $kind, $titolo, $config, $data, $chiave], 'iisssss');
     $nuovo = sec_one("SELECT id, uuid, kind, title, config, data, sort_key FROM tracker_blocks WHERE user_id = ? AND project_id = ? AND sort_key = ? ORDER BY id DESC LIMIT 1", [$uid, $pid, $chiave], 'iis');
     sec_json(['ok' => true, 'block' => $nuovo ? tk_riga($nuovo) : null]);
+}
+
+if ($ajax === 'ai_table') {
+    sec_require_rate('tracker_ai', $uid, 20, 3600);
+    $r = tkai_tabella($uid, (string)sec_in('text', ''), (string)sec_in('request', ''));
+    if (!$r['ok']) sec_die_json($r['message'], (int)$r['http'], $r['code']);
+    sec_json($r);
 }
 
 if ($ajax === 'save') {

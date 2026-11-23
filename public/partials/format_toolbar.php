@@ -4486,7 +4486,7 @@ function ftViewportVisibile() {
    mostrano che, con la tastiera aperta, il punto dello schermo corrispondente
    a pageYOffset sta circa 90px piu' in basso di quanto dica JavaScript, quindi
    la copia finiva nascosta sotto la barra di stato. Finche' non si misura
-   quello scarto (vedi le sonde in ftDebugAvvia) il modo scatta solo quando il
+   quello scarto il modo scatta solo quando il
    browser stesso dichiara la tastiera, come nella versione precedente. */
 function ftModoDocumento() {
     return ftTastieraAperta();
@@ -4775,158 +4775,6 @@ function ftAggancioSuCasella(wrap) {
    quanto ne resta sotto. Le condizioni in piu' che avevo aggiunto prima
    ("non tenere la barra se sotto resta poco") facevano sparire tutto proprio
    mentre si stava ancora scrivendo. */
-/* Lettura a schermo dei numeri dell'aggancio, SOLO se l'indirizzo contiene
-   ftdebug=1 (o localStorage.ftdebug = '1'). Serve a capire cosa vede Safari su
-   iPhone quando la barra si comporta in modo strano: sul telefono non c'e'
-   una console. Il riquadro compare appena la pagina e' caricata (cosi' prova
-   anche che il codice nuovo e' arrivato), si ridisegna a ogni fotogramma e
-   riporta gli errori JavaScript. Sta nel documento, in absolute alla posizione
-   di cio' che si vede, cosi' non dipende da come Safari tratta "fixed". */
-var FT_ULTIMO = null;
-function ftDebugAggancio(a, m, r, rWrap) {
-    FT_ULTIMO = { motivo: a._motivo, soglia: m.soglia, limite: m.limite,
-                  bt: r.top, bh: r.height, wt: rWrap.top, wb: rWrap.bottom };
-}
-function ftDebugAttivo() {
-    try {
-        return /[?&]ftdebug=1/.test(location.search) || localStorage.getItem('ftdebug') === '1';
-    } catch (e) { return /[?&]ftdebug=1/.test(location.search); }
-}
-function ftDebugAvvia() {
-    /* IL REGISTRO. Il riquadro in sovraimpressione non basta: su iPhone, con la
-       selezione che fa scorrere la pagina, sparisce anche lui (si posiziona con
-       gli stessi numeri che sono sbagliati). Allora si REGISTRA cosa succede nel
-       tempo — a ogni cambiamento, con l'orologio — e lo si legge dopo, ricaricando
-       la pagina: in cima compare, in un riquadro normale (non sovrapposto, quindi
-       sempre visibile), il registro della sessione precedente. */
-    var t0 = Date.now(), righe = [], ultimaChiave = '', ultimoScroll = '-', errori = 0;
-    var prec = '';
-    try {
-        prec = localStorage.getItem('ftdebug_log') || '';
-    } catch (e) {}
-
-    function chi(n) {
-        if (!n) return '?';
-        if (n === document || n === document.documentElement) return 'doc';
-        if (n === document.body) return 'body';
-        return (n.tagName || '?').toLowerCase() + (n.id ? '#' + n.id : '') +
-               (n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/)[0] : '');
-    }
-    function aggiungi(r) {
-        righe.push(r);
-        if (righe.length > 70) righe.shift();
-        try { localStorage.setItem('ftdebug_log', righe.join('\n')); } catch (e) {}
-    }
-    window.addEventListener('error', function (e) { errori++; aggiungi('!! ERRORE ' + (e.message || '?') + ' @' + (e.lineno || '?')); });
-    window.addEventListener('unhandledrejection', function (e) { aggiungi('!! promise ' + (e.reason && e.reason.message || e.reason)); });
-    window.addEventListener('scroll', function (e) { ultimoScroll = chi(e.target); }, { capture: true, passive: true });
-
-    /* SONDE per misurare lo scarto fra cio' che dice JavaScript e cio' che
-       Safari disegna con la tastiera aperta: tre elementi invisibili alti
-       100lvh / 100svh / 100dvh (le tre "altezze della finestra" di CSS, che
-       cambiano quando la barra di Safari si ritira) e l'ultimo tocco con le
-       sue coordinate di finestra, di pagina e di SCHERMO. */
-    var sonde = null;
-    function creaSonde() {
-        if (sonde || !document.body) return;
-        sonde = {};
-        ['lvh', 'svh', 'dvh'].forEach(function (u) {
-            var e = document.createElement('div');
-            e.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:100' + u + ';visibility:hidden;pointer-events:none';
-            document.body.appendChild(e);
-            sonde[u] = e;
-        });
-    }
-    var tocco = '-';
-    function memoTocco(e) {
-        var t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
-        if (t) tocco = 'cy' + Math.round(t.clientY) + ' sy' + Math.round(t.screenY) + ' py' + Math.round(t.pageY);
-    }
-    ['touchstart', 'touchmove', 'touchend'].forEach(function (n) { document.addEventListener(n, memoTocco, { capture: true, passive: true }); });
-
-    function istantanea(ev) {
-        creaSonde();
-        var a = FT_AGGANCIO, vv = window.visualViewport || {}, u = FT_ULTIMO, sel = '-';
-        try {
-            var sc = window.getSelection();
-            if (sc && sc.rangeCount) { var rr = sc.getRangeAt(0).getBoundingClientRect(); sel = Math.round(rr.top) + '/' + Math.round(rr.bottom); }
-        } catch (e) {}
-        var c = (a.clone && a.clone.getBoundingClientRect) ? a.clone.getBoundingClientRect() : null;
-        var se = document.scrollingElement || document.documentElement;
-        var hd = document.querySelector('header, .fc-tb, .sticky-header, [class*="topbar"]');
-        var hr = hd ? Math.round(hd.getBoundingClientRect().top) : '-';
-        var altSonde = sonde ? ['lvh', 'svh', 'dvh'].map(function (u) { return Math.round(sonde[u].getBoundingClientRect().height); }).join('/') : '-';
-        var chiave = [altSonde, tocco, a.wrap ? 1 : 0, a.clone ? 1 : 0, ftTastieraAperta() ? 1 : 0, u ? u.motivo : '-',
-                      Math.round(window.pageYOffset / 25), Math.round((vv.offsetTop || 0) / 25), Math.round((vv.pageTop || 0) / 25),
-                      Math.round((vv.height || 0) / 25), c ? Math.round(c.top / 25) : '-'].join('|');
-        if (chiave === ultimaChiave) return;
-        ultimaChiave = chiave;
-        aggiungi(((Date.now() - t0) / 1000).toFixed(1) + ' ' + ev +
-            ' sy' + Math.round(window.pageYOffset) + ' se' + Math.round(se.scrollTop) +
-            ' ot' + Math.round(vv.offsetTop || 0) + ' pt' + Math.round(vv.pageTop || 0) +
-            ' vh' + Math.round(vv.height || 0) + '/' + window.innerHeight +
-            ' k' + (ftTastieraAperta() ? 1 : 0) + ' d' + (ftModoDocumento() ? 1 : 0) + ' w' + (a.wrap ? 1 : 0) +
-            ' cl' + (c ? Math.round(c.top) + (a.clone.style.position === 'absolute' ? 'A' : 'F') : '-') +
-            ' mo:' + (u ? u.motivo : '-') + (u ? ' so' + Math.round(u.soglia) + ' bt' + Math.round(u.bt) : '') +
-            ' sel' + sel + ' hd' + hr + ' sc:' + ultimoScroll +
-            ' H' + altSonde + ' ih' + window.innerHeight + ' sh' + (window.screen ? window.screen.height : '?') + ' T:' + tocco);
-    }
-    /* Due motori di campionamento: un intervallo (continua anche se i
-       fotogrammi si fermano) e gli eventi veri, per prendere l'istante giusto. */
-    setInterval(function () { try { istantanea('t'); } catch (e) { aggiungi('!! ' + e.message); } }, 200);
-    ['scroll', 'resize'].forEach(function (n) {
-        if (window.visualViewport) window.visualViewport.addEventListener(n, function () { try { istantanea('vv' + n[0]); } catch (e) {} });
-    });
-    document.addEventListener('selectionchange', function () { try { istantanea('sel'); } catch (e) {} });
-    document.addEventListener('focusin', function () { try { istantanea('fi'); } catch (e) {} });
-    document.addEventListener('focusout', function () { try { istantanea('fo'); } catch (e) {} });
-
-    /* Il registro della sessione PRECEDENTE, in cima alla pagina, nel flusso
-       normale. Dopo aver letto, basta non ricaricare di nuovo: ogni caricamento
-       sostituisce il registro vecchio con quello della sessione che finisce. */
-    function mostraPrecedente() {
-        if (!document.body) { document.addEventListener('DOMContentLoaded', mostraPrecedente); return; }
-        var box = document.createElement('pre');
-        box.id = 'ft-debug-log';
-        box.style.cssText = 'margin:70px 4px 8px;padding:6px;font:9px/1.25 monospace;background:#fff59d;color:#000;' +
-                            'border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:55vh;overflow:auto';
-        box.textContent = 'ftdebug v7 - REGISTRO PRECEDENTE (' + (prec ? prec.split('\n').length : 0) + ' righe)\n' + (prec || '(vuoto)');
-        document.body.insertBefore(box, document.body.firstChild);
-    }
-    mostraPrecedente();
-    /* La sessione nuova parte da zero (il vecchio registro e' gia' in prec). */
-    try { localStorage.setItem('ftdebug_log', ''); } catch (e) {}
-
-    var d = null;
-    function ciclo() {
-        if (!d) {
-            if (!document.body) { requestAnimationFrame(ciclo); return; }
-            d = document.createElement('pre');
-            d.id = 'ft-debug';
-            d.style.cssText = 'position:absolute;left:4px;margin:0;padding:4px 6px;font:10px/1.25 monospace;' +
-                              'background:rgba(255,235,59,.92);color:#000;z-index:2147483000;pointer-events:none;' +
-                              'border-radius:6px;max-width:90vw;white-space:pre-wrap';
-            document.body.appendChild(d);
-        }
-        var a = FT_AGGANCIO, vv = window.visualViewport || {}, u = FT_ULTIMO;
-        var c = (a.clone && a.clone.getBoundingClientRect) ? a.clone.getBoundingClientRect() : null;
-        var tipo = (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) ? 'APP' : 'browser';
-        d.textContent =
-            'ftdebug v4 ' + tipo + ' | casella ' + (a.wrap ? 'SI' : 'no') + ' clone ' + (a.clone ? 'SI' : 'no') +
-            ' kb ' + (ftTastieraAperta() ? 1 : 0) + ' motivo ' + (u ? u.motivo : '-') + '\n' +
-            'scrollY ' + Math.round(window.pageYOffset) + ' innerH ' + window.innerHeight + ' screenH ' + (window.screen ? window.screen.height : '?') + '\n' +
-            'vv.offTop ' + Math.round(vv.offsetTop) + ' vv.pageTop ' + Math.round(vv.pageTop) + ' vv.h ' + Math.round(vv.height) + '\n' +
-            (u ? 'soglia ' + Math.round(u.soglia) + ' limite ' + Math.round(u.limite) + ' barra top ' + Math.round(u.bt) + ' h ' + Math.round(u.bh) +
-                 ' wrap ' + Math.round(u.wt) + '..' + Math.round(u.wb) + '\n' : '') +
-            'clone top ' + (c ? Math.round(c.top) : '-') + ' pos ' + (a.clone ? a.clone.style.position || 'fixed' : '-') +
-            (errori ? '\nERRORI: ' + errori + ' (vedi il registro)' : '');
-        var pt = (typeof vv.pageTop === 'number') ? vv.pageTop : window.pageYOffset;
-        d.style.top = (pt + 90) + 'px';
-        requestAnimationFrame(ciclo);
-    }
-    ciclo();
-}
-if (ftDebugAttivo() && !window.__ftDebugAvviato) { window.__ftDebugAvviato = true; ftDebugAvvia(); }
 
 /* DOVE METTERE LA COPIA
    Normalmente position:fixed, che e' la cosa giusta e scorre senza scatti.
@@ -5000,7 +4848,7 @@ function ftAggancioAggiorna() {
     /* Dentro un popup non c'e' spazio utile: il pannello e' chiuso o
        schiacciato. Meglio niente copia che una copia che sbuca fuori dai
        suoi bordi. */
-    if (!tastiera && m.limite - soglia < 24) { a._motivo = 'limite'; ftAggancioTogliClone(a); ftDebugAggancio(a, m, r, rWrap); return; }
+    if (!tastiera && m.limite - soglia < 24) { a._motivo = 'limite'; ftAggancioTogliClone(a); return; }
 
     /* "Fuori" vuol dire fuori dallo SCHERMO, non fuori da un valore calcolato:
        se la soglia risultasse per qualunque motivo sbagliata per eccesso, una
@@ -5023,13 +4871,13 @@ function ftAggancioAggiorna() {
 
     if (casellaFuori || !barraSotto) {
         a._motivo = casellaFuori ? 'fuori' : 'sotto';
-        ftAggancioTogliClone(a); ftDebugAggancio(a, m, r, rWrap); return;
+        ftAggancioTogliClone(a); return;
     }
 
     ftAggancioCreaClone(a);
     ftAggancioAggiornaClone();
     ftAggancioPosiziona(a, r, soglia);
-    ftDebugAggancio(a, m, r, rWrap);
+   
     /* Sopra tutto quello che le sta attorno: i popup di questo sito arrivano a
        z-index 12500, e con il 1000 del foglio di stile la copia ci sarebbe
        finita dietro — invisibile pur essendo stata creata. */
