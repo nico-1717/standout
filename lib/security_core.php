@@ -221,6 +221,11 @@ function sec_q(string $sql, array $params = [], ?string $types = null) {
     } catch (Throwable $e) {
         sec_log_error('sql_execute', $e->getMessage() . ' | ' . substr($sql, 0, 120));
         mysqli_stmt_close($stmt);
+        /* Nell'invio dell'app (sync/push) un errore di database NON deve fermare tutto il processo: si lancia, e il
+           push lo segna su QUELLA modifica (con l'errore, per il registro del telefono) mentre le altre passano. */
+        if (!empty($GLOBALS['SEC_Q_LANCIA'])) {
+            throw new RuntimeException(substr(preg_replace('/\s+/', ' ', $e->getMessage()), 0, 160) . ' | ' . substr(trim(preg_replace('/\s+/', ' ', $sql)), 0, 100), 0, $e);
+        }
         sec_die_json(t('api.errore_database'), 500);
     }
     $isSelect = stripos(ltrim($sql), 'SELECT') === 0 || stripos(ltrim($sql), 'SHOW') === 0;

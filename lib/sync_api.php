@@ -476,6 +476,7 @@ function api_h_sync_push(array $ctx): void {
     if (!is_array($mut) || !array_is_list($mut)) api_errore('validation', 'mutations must be a list', null, ['field' => 'mutations']);
     if (count($mut) > SYNC_PUSH_MAX) api_errore('validation', 'At most ' . SYNC_PUSH_MAX . ' mutations per push', null, ['field' => 'mutations']);
     $GLOBALS['SYNC_DEVICE_ID'] = (int)$ctx['sessione_id'];
+    $GLOBALS['SEC_Q_LANCIA'] = true;   // un errore di database su una modifica non ferma le altre (vedi sec_q)
 
     $esiti = [];
     foreach ($mut as $m) {
@@ -512,7 +513,8 @@ function api_h_sync_push(array $ctx): void {
             } catch (Throwable $e) {
                 // errore nostro, non del telefono: NON si ricorda, cosi' il telefono riprova
                 sec_log_error('sync_push', get_class($e) . ' ' . $e->getMessage());
-                $esiti[] = ['mutation_id' => $mid, 'status' => 'error', 'code' => 'server_error'];
+                $esiti[] = ['mutation_id' => $mid, 'status' => 'error', 'code' => 'server_error',
+                            'detail' => get_class($e) . ' in ' . basename($e->getFile()) . ':' . $e->getLine() . ': ' . substr($e->getMessage(), 0, 260)];
                 continue;
             }
         }
@@ -531,7 +533,7 @@ function api_h_sync_push(array $ctx): void {
         $d = get_class($e) . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
         sec_log_error('sync_push', $d . ' ' . substr($e->getMessage(), 0, 200));
         $esiti[] = ['mutation_id' => (isset($m['mutation_id']) && is_string($m['mutation_id'])) ? substr($m['mutation_id'], 0, 36) : null,
-                    'status' => 'error', 'code' => 'server_error', 'detail' => $d . ': ' . substr($e->getMessage(), 0, 120)];
+                    'status' => 'error', 'code' => 'server_error', 'detail' => $d . ': ' . substr($e->getMessage(), 0, 260)];
       }
     }
 
