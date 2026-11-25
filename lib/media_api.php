@@ -25,6 +25,11 @@ const MEDIA_CAMPI = [
         'question_image' => ['immagine', 'flashcard_images'], 'answer_image' => ['immagine', 'flashcard_images'],
         'question_audio' => ['audio', 'flashcard_audio'],     'answer_audio' => ['audio', 'flashcard_audio'],
     ],
+    /* gli esempi di una carta di studio: la foto e il suono, nelle stesse cartelle in cui li mette il sito (fc_examples_api.php) */
+    'fc_study_examples' => [
+        'example_image' => ['immagine', 'example_images'],
+        'example_audio' => ['audio', 'flashcard_audio'],
+    ],
     'fc_vocab_cards'    => ['image' => ['immagine', 'vocab_images']],
     'fc_vocab_subcards' => ['image' => ['immagine', 'vocab_images']],
     'fc_vocab_examples' => ['example_image' => ['immagine', 'example_images']],
