@@ -457,6 +457,10 @@
             function () { S.showEv = !S.showEv; store('ev', S.showEv ? '1' : '0'); refresh(); }, t('eventi_btn'));
         evb.title = t('eventi_btn');
         dock.appendChild(evb);
+        var kdb = btn('pp-undo', svg('M12.5 21h-6.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v5 M16 3v4 M8 3v4 M4 11h16 M16 19h6 M19 16v6', 18, 1.8),
+            function () { keyDateSheet(); }, t('data_imp_btn'));
+        kdb.title = t('data_imp_btn');
+        dock.appendChild(kdb);
         var un = btn('pp-undo', svg(IC.undo, 18, 2), function () { undo(); }, t('annulla'));
         un.title = t('annulla'); un.disabled = !S.undo.length;
         dock.appendChild(un);
@@ -937,6 +941,47 @@
         }
         draw();
         var s = sheet(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }), box);
+    }
+
+    /* ---------------- una data importante (un evento del planner, tutto il giorno, importante o importantissimo) ---------------- */
+    function keyDateSheet() {
+        var box = h('div', '');
+        var name = h('input', 'pp-inp'); name.type = 'text'; name.maxLength = 180; name.placeholder = t('data_imp_nome');
+        name.style.width = '100%';
+        var day = h('input', 'pp-inp'); day.type = 'date'; day.value = S.today || ''; day.style.width = '100%';
+        var level = 'high';
+        var seg = h('div', 'pp-seg');
+        var items = [['high', t('imp_high')], ['highest', t('imp_highest')]];
+        function paintSeg() {
+            seg.innerHTML = '';
+            items.forEach(function (x) {
+                seg.appendChild(btn('pp-seg-it' + (level === x[0] ? ' on' : ''), x[1], function () { level = x[0]; paintSeg(); }));
+            });
+        }
+        paintSeg();
+        box.appendChild(h('div', 'pp-lab', t('data_imp_nome')));
+        box.appendChild(name);
+        box.appendChild(h('div', 'pp-lab', t('data_imp_giorno')));
+        box.appendChild(day);
+        box.appendChild(h('div', 'pp-lab', t('data_imp_livello')));
+        box.appendChild(seg);
+        var save = btn('pp-btn primary', t('salva'), function () {
+            var title = name.value.trim();
+            if (!title) { name.focus(); return; }
+            if (!day.value) { day.focus(); return; }
+            save.disabled = true;
+            fetch('../planner/planner_api.php?ajax=event_save', {
+                method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: title, date: day.value, all_day: 1, importance: level, type: 'event', notify: 'none' })
+            }).then(function (r) { return r.json(); }).then(function (d) {
+                if (!d || d.ok === false) throw new Error('error');
+                S.showEv = true; store('ev', '1');
+                s.close(); toast(t('data_imp_fatta'));
+                return refresh();
+            }).catch(function (e) { save.disabled = false; fail(e); });
+        });
+        var s = sheet(t('data_imp_titolo'), box, [save]);
+        setTimeout(function () { name.focus(); }, 250);
     }
 
     /* ---------------- impostazioni (il tempo libero) ---------------- */
