@@ -222,6 +222,14 @@
         });
     }
 
+    /* le date importanti si vedono solo se legate al progetto scelto (o a un suo sotto-progetto) */
+    function evOf(d) {
+        var root = S.sel || S.scope, ids = root ? subtree(root).map(String) : null;
+        return (S.ev[d] || []).filter(function (x) {
+            return x.p > 0 && S.nodes[x.p] && (!ids || ids.indexOf(String(x.p)) >= 0);
+        });
+    }
+
     /* gli eventi importanti del planner, solo se l'interruttore è acceso */
     function evLoad(r) {
         S.ev = {};
@@ -408,9 +416,9 @@
                 if (painted || planned) mk.push({ id: cid, color: S.nodes[cid].color, soft: !painted });
             });
             marks.push(mk);
-            var evs = S.showEv && S.ev[d];
+            var evs = S.showEv && evOf(d);
             if (evs && evs.length) {
-                var evm = h('span', 'pp-evm' + (evs.some(function (x) { return x.imp === 'highest'; }) ? ' top' : ''));
+                var evm = h('span', 'pp-evm' + (evs.some(function (x) { return x.imp === 'highest'; }) ? ' top' : '') + (d < S.today ? ' past' : ''));
                 evm.title = evs.map(function (x) { return x.title; }).join(', ');
                 cell.appendChild(evm);
             }
@@ -683,7 +691,7 @@
         /* gli eventi importanti del planner */
         var evs = {};
         days.forEach(function (d, i) {
-            (S.ev[d] || []).forEach(function (x) {
+            evOf(d).forEach(function (x) {
                 var k = x.title + '|' + x.imp, e = evs[k] = evs[k] || { title: x.title, imp: x.imp, act: days.map(function () { return null; }) };
                 e.act[i] = { m: 0 };
             });
@@ -728,13 +736,15 @@
         var mese = S.month.slice(0, 7), n = 0;
         Object.keys(S.ev).sort().forEach(function (d) {
             if (d.slice(0, 7) !== mese) return;
-            S.ev[d].forEach(function (x) {
+            evOf(d).forEach(function (x) {
                 n++;
-                var row = h('div', 'pp-evrow' + (x.imp === 'highest' ? ' top' : ''));
+                var row = h('button', 'pp-evrow' + (x.imp === 'highest' ? ' top' : '') + (d < S.today ? ' past' : ''));
+                row.type = 'button';
                 row.appendChild(h('span', 'pp-evd', parse(d).getUTCDate()));
                 row.appendChild(h('span', 'pp-evt', x.title || '—'));
                 row.appendChild(h('span', 'pp-evh', x.all ? t('tutto_giorno') : x.time));
                 row.appendChild(h('span', 'pp-evi', t(x.imp === 'highest' ? 'imp_highest' : 'imp_high')));
+                row.addEventListener('click', function () { keyDateSheet(x); });
                 card.appendChild(row);
             });
         });
@@ -943,13 +953,15 @@
         var s = sheet(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }), box);
     }
 
-    /* ---------------- una data importante (un evento del planner, tutto il giorno, importante o importantissimo) ---------------- */
-    function keyDateSheet() {
+    /* ---------------- una data importante: si aggiunge dalla barra e si cambia o si toglie dalla lista ---------------- */
+    function keyDateSheet(ev) {
+        var edit = !!ev;
         var box = h('div', '');
         var name = h('input', 'pp-inp'); name.type = 'text'; name.maxLength = 180; name.placeholder = t('data_imp_nome');
-        name.style.width = '100%';
-        var day = h('input', 'pp-inp'); day.type = 'date'; day.value = S.today || ''; day.style.width = '100%';
-        var level = 'high';
+        name.style.width = '100%'; if (edit) name.value = ev.title || '';
+        var day = h('input', 'pp-inp'); day.type = 'date'; day.style.width = '100%';
+        day.value = edit ? ev.sd : (S.today || '');
+        var level = edit && ev.imp === 'highest' ? 'highest' : 'high';
         var seg = h('div', 'pp-seg');
         var items = [['high', t('imp_high')], ['highest', t('imp_highest')]];
         function paintSeg() {
@@ -961,27 +973,47 @@
         paintSeg();
         box.appendChild(h('div', 'pp-lab', t('data_imp_nome')));
         box.appendChild(name);
-        box.appendChild(h('div', 'pp-lab', t('data_imp_giorno')));
-        box.appendChild(day);
+        // il giorno si cambia solo se l'evento non si ripete
+        if (!(edit && ev.rep)) {
+            box.appendChild(h('div', 'pp-lab', t('data_imp_giorno')));
+            box.appendChild(day);
+        }
         box.appendChild(h('div', 'pp-lab', t('data_imp_livello')));
         box.appendChild(seg);
+        function done() {
+            S.showEv = true; store('ev', '1');
+            s.close();
+            return refresh();
+        }
         var save = btn('pp-btn primary', t('salva'), function () {
             var title = name.value.trim();
             if (!title) { name.focus(); return; }
             if (!day.value) { day.focus(); return; }
             save.disabled = true;
-            fetch('../planner/planner_api.php?ajax=event_save', {
+            var req;
+            if (edit) req = api('kd_update', { id: ev.id, title: title, date: day.value, importance: level });
+            else req = fetch('../planner/planner_api.php?ajax=event_save', {
                 method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: title, date: day.value, all_day: 1, importance: level, type: 'event', notify: 'none' })
-            }).then(function (r) { return r.json(); }).then(function (d) {
-                if (!d || d.ok === false) throw new Error('error');
-                S.showEv = true; store('ev', '1');
-                s.close(); toast(t('data_imp_fatta'));
-                return refresh();
-            }).catch(function (e) { save.disabled = false; fail(e); });
+                body: JSON.stringify({ title: title, date: day.value, all_day: 1, importance: level, type: 'event', notify: 'none', project_id: S.sel || S.scope || 0 })
+            }).then(function (r) { return r.json(); }).then(function (d) { if (!d || d.ok === false) throw new Error('error'); return d; });
+            req.then(function () { toast(t('data_imp_fatta')); return done(); }).catch(function (e) { save.disabled = false; fail(e); });
         });
-        var s = sheet(t('data_imp_titolo'), box, [save]);
-        setTimeout(function () { name.focus(); }, 250);
+        var foot = [save];
+        if (edit) {
+            var armed = false;
+            var del = btn('pp-btn danger', t('elimina'), function () {
+                if (!armed) { armed = true; del.textContent = t('data_imp_sicuro'); return; }
+                del.disabled = true;
+                fetch('../planner/planner_api.php?ajax=event_delete', {
+                    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: ev.id, scope: 'one' })
+                }).then(function (r) { return r.json(); }).then(function (d) { if (!d || d.ok === false) throw new Error('error'); return done(); })
+                  .catch(function (e) { del.disabled = false; fail(e); });
+            });
+            foot.unshift(del);
+        }
+        var s = sheet(t(edit ? 'data_imp_modifica' : 'data_imp_titolo'), box, foot);
+        if (!edit) setTimeout(function () { name.focus(); }, 250);
     }
 
     /* ---------------- impostazioni (il tempo libero) ---------------- */

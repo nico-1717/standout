@@ -302,6 +302,10 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-evd{ width:24px; flex-shrink:0; font-weight:700; font-variant-numeric:tabular-nums; }
 .pp-evt{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pp-evh{ color:var(--text-2); font-size:12.5px; flex-shrink:0; }
+.pp-evrow{ width:100%; background:none; border-left:0; border-right:0; border-bottom:0; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.pp-btn.danger{ color:#FF453A; }
+.pp-evrow.past{ opacity:.5; filter:grayscale(1); }
+.pp-evm.past{ background:#8E8E93; opacity:.8; }
 .pp-evi{ flex-shrink:0; font-size:11px; font-weight:600; padding:2px 7px; border-radius:99px; background:color-mix(in srgb, #FFD60A 22%, transparent); color:#B38F00; }
 .pp-evrow.top .pp-evi{ background:color-mix(in srgb, #FF453A 20%, transparent); color:#FF453A; }
 /* sul computer e sull'iPad largo la sidebar occupa i primi 280px: il comando in basso parte dopo */

@@ -785,7 +785,7 @@ if ($ajax === 'events') {
     $da = sec_date(sec_in('from')); $a = sec_date(sec_in('to'));
     if (!$da || !$a || $a < $da || pn_diff($da, $a) > 120) sec_die_json(t('piano.api_dati_non_validi'), 400, 'bad_request');
     $out = [];
-    foreach (sec_all("SELECT title, importance, is_all_day, start_time, event_date, COALESCE(end_date, event_date) AS fine, color
+    foreach (sec_all("SELECT id, project_id, rrule, title, importance, is_all_day, start_time, event_date, COALESCE(end_date, event_date) AS fine, color
                       FROM planner_events
                       WHERE user_id = ? AND importance <> 'normal' AND item_type = 'event' AND COALESCE(is_cancelled,0) = 0
                         AND event_date <= ? AND COALESCE(end_date, event_date) >= ?
@@ -793,7 +793,8 @@ if ($ajax === 'events') {
         // un evento su più giorni compare in ognuno dei giorni dell'intervallo
         $g = max((string)$r['event_date'], $da); $fine = min((string)$r['fine'], $a); $n = 0;
         for (; $g <= $fine && $n < 60; $g = pn_piu($g, 1), $n++)
-            $out[] = ['d' => $g, 'title' => (string)$r['title'], 'imp' => (string)$r['importance'], 'all' => (int)$r['is_all_day'] === 1,
+            $out[] = ['d' => $g, 'id' => (int)$r['id'], 'rep' => !empty($r['rrule']), 'p' => (int)($r['project_id'] ?? 0), 'sd' => (string)$r['event_date'], 'ed' => (string)$r['fine'],
+                      'title' => (string)$r['title'], 'imp' => (string)$r['importance'], 'all' => (int)$r['is_all_day'] === 1,
                       'time' => substr((string)$r['start_time'], 0, 5), 'color' => (string)($r['color'] ?? '')];
     }
     sec_json(['ok' => true, 'events' => $out]);
@@ -1145,6 +1146,31 @@ if ($ajax === 'tpl_apply') {
 }
 if ($ajax === 'tpl_delete') {
     sec_q("DELETE FROM plan_templates WHERE id = ? AND user_id = ?", [sec_int(sec_in('id'), 0, PHP_INT_MAX, 0), $uid], 'ii');
+    sec_json(['ok' => true]);
+}
+
+/* ---------------------------------------------------------------------
+   kd_update: cambia una data importante già nel planner (titolo, giorno,
+   importanza) senza toccare il resto (orari, ripetizione, notifiche): il
+   salvataggio completo del planner riscrive ogni campo. Il giorno cambia solo
+   per gli eventi che non si ripetono; uno su più giorni si sposta intero.
+   --------------------------------------------------------------------- */
+if ($ajax === 'kd_update') {
+    $id  = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
+    $tit = sec_str(sec_in('title'), 180);
+    $imp = sec_enum(sec_in('importance'), ['high', 'highest'], 'high');
+    $dat = sec_date(sec_in('date'), null);
+    if ($id < 1 || $tit === '') sec_die_json(t('piano.api_dati_non_validi'), 400, 'bad_request');
+    $righe = sec_all("SELECT event_date, end_date, rrule FROM planner_events WHERE id = ? AND user_id = ? AND item_type = 'event'", [$id, $uid], 'ii');
+    if (!$righe) sec_die_json(t('api.evento_non_trovato'), 404, 'not_found');
+    $r = $righe[0];
+    $giorno = (string)$r['event_date']; $fine = $r['end_date'] !== null ? (string)$r['end_date'] : null;
+    if ($dat && empty($r['rrule']) && $dat !== $giorno) {
+        if ($fine !== null) $fine = pn_piu($dat, pn_diff($giorno, $fine));
+        $giorno = $dat;
+    }
+    sec_q("UPDATE planner_events SET title = ?, importance = ?, event_date = ?, end_date = ? WHERE id = ? AND user_id = ?",
+          [$tit, $imp, $giorno, $fine, $id, $uid], 'ssssii');
     sec_json(['ok' => true]);
 }
 

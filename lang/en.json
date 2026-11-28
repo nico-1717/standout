@@ -5371,6 +5371,8 @@
     "data_imp_giorno": "Day",
     "data_imp_livello": "How important is it?",
     "data_imp_fatta": "Important date added.",
+    "data_imp_modifica": "Edit important date",
+    "data_imp_sicuro": "Tap again to delete",
     "eventi_titolo": "Important events",
     "eventi_nessuno": "No important events this month.",
     "imp_high": "Important",

@@ -5371,6 +5371,8 @@
     "data_imp_giorno": "Giorno",
     "data_imp_livello": "Quanto è importante?",
     "data_imp_fatta": "Data importante aggiunta.",
+    "data_imp_modifica": "Modifica data importante",
+    "data_imp_sicuro": "Tocca ancora per eliminare",
     "eventi_titolo": "Eventi importanti",
     "eventi_nessuno": "Nessun evento importante questo mese.",
     "imp_high": "Importante",
